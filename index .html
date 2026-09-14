@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PROJECT: UNKNOWN — Secure Terminal</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #080a0d;
+    color: #e8edf2;
+    font-family: "Courier New", monospace;
+    display: grid;
+    place-items: center;
+    overflow-x: hidden;
+  }
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,.025) 0,
+      rgba(255,255,255,.025) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    opacity: .35;
+  }
+  .terminal {
+    width: min(92vw, 720px);
+    min-height: 560px;
+    border: 1px solid #39424c;
+    background: #0c1014;
+    box-shadow: 0 0 35px rgba(0,0,0,.65);
+    position: relative;
+  }
+  .topbar {
+    height: 42px;
+    border-bottom: 1px solid #39424c;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    color: #9da8b2;
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  .status { color: #d7dde3; }
+  .screen { padding: 34px 34px 30px; }
+  .label {
+    color: #8f9aa5;
+    font-size: 12px;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: clamp(28px, 7vw, 48px);
+    letter-spacing: 4px;
+  }
+  h2 {
+    font-size: 21px;
+    letter-spacing: 2px;
+    margin: 0 0 18px;
+  }
+  p { line-height: 1.7; color: #b7c0c8; }
+  .line {
+    height: 1px;
+    background: #303942;
+    margin: 26px 0;
+  }
+  .boot {
+    color: #9ca7b1;
+    line-height: 1.8;
+    min-height: 120px;
+  }
+  .prompt { color: #dfe5ea; margin: 18px 0 8px; }
+  input {
+    width: 100%;
+    padding: 16px;
+    background: #07090b;
+    color: #fff;
+    border: 1px solid #56616c;
+    outline: none;
+    font: 700 22px "Courier New", monospace;
+    letter-spacing: 8px;
+    text-align: center;
+  }
+  input:focus { border-color: #b8c2ca; }
+  button {
+    width: 100%;
+    margin-top: 12px;
+    padding: 15px;
+    background: #dfe5ea;
+    color: #090b0e;
+    border: 0;
+    font: 700 14px "Courier New", monospace;
+    letter-spacing: 2px;
+    cursor: pointer;
+  }
+  button:hover { background: #fff; }
+  .error { color: #e0a0a0; min-height: 24px; margin-top: 12px; }
+  .checks {
+    display: grid;
+    gap: 8px;
+    margin: 24px 0;
+    color: #aeb8c1;
+  }
+  .checks span { opacity: 0; animation: show .35s forwards; }
+  .checks span:nth-child(1){animation-delay:.15s}
+  .checks span:nth-child(2){animation-delay:.45s}
+  .checks span:nth-child(3){animation-delay:.75s}
+  .checks span:nth-child(4){animation-delay:1.05s}
+  @keyframes show { to { opacity: 1; } }
+  .success {
+    border: 1px solid #53606b;
+    padding: 22px;
+    margin-top: 20px;
+    background: #10151a;
+  }
+  .big { font-size: 26px; letter-spacing: 3px; }
+  .muted { color: #7f8a94; font-size: 12px; }
+  .reveal {
+    margin-top: 25px;
+    border-top: 1px dashed #46515c;
+    padding-top: 22px;
+  }
+  .reveal strong { color: #f0f3f5; }
+  .hidden { display: none; }
+  .shake { animation: shake .35s; }
+  @keyframes shake {
+    25% { transform: translateX(-8px); }
+    50% { transform: translateX(8px); }
+    75% { transform: translateX(-5px); }
+  }
+  .footer {
+    margin-top: 28px;
+    color: #68737d;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+
+  /* GLITCH EFFECTS */
+  .glitch-wrap {
+    position: relative;
+    display: inline-block;
+  }
+  .glitch-title {
+    position: relative;
+    color: #e8edf2;
+    text-shadow: 0 0 8px rgba(255,255,255,.08);
+  }
+  .glitch-title::before,
+  .glitch-title::after {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0;
+  }
+  .glitch-title::before {
+    color: #ff5f70;
+    transform: translate(2px, -1px);
+  }
+  .glitch-title::after {
+    color: #5fe7ff;
+    transform: translate(-2px, 1px);
+  }
+  .glitching .glitch-title::before {
+    opacity: .75;
+    animation: glitchA .18s steps(2) infinite;
+  }
+  .glitching .glitch-title::after {
+    opacity: .75;
+    animation: glitchB .16s steps(2) infinite;
+  }
+  @keyframes glitchA {
+    0% { clip-path: inset(5% 0 82% 0); }
+    25% { clip-path: inset(61% 0 19% 0); transform: translate(7px,-1px); }
+    50% { clip-path: inset(35% 0 48% 0); transform: translate(-4px,1px); }
+    75% { clip-path: inset(78% 0 5% 0); transform: translate(3px,0); }
+    100% { clip-path: inset(5% 0 82% 0); }
+  }
+  @keyframes glitchB {
+    0% { clip-path: inset(72% 0 8% 0); }
+    25% { clip-path: inset(12% 0 65% 0); transform: translate(-6px,1px); }
+    50% { clip-path: inset(45% 0 30% 0); transform: translate(4px,-1px); }
+    75% { clip-path: inset(4% 0 86% 0); transform: translate(-2px,0); }
+    100% { clip-path: inset(72% 0 8% 0); }
+  }
+  .glitch-flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 3px,
+        rgba(255,255,255,.08) 4px,
+        transparent 5px
+      );
+    mix-blend-mode: screen;
+    opacity: 0;
+  }
+  .flash-active {
+    animation: screenFlash .32s steps(3);
+  }
+  @keyframes screenFlash {
+    0%,100% { opacity: 0; }
+    20% { opacity: .55; transform: translateX(-2px); }
+    40% { opacity: .1; transform: translateX(3px); }
+    60% { opacity: .4; transform: translateX(-1px); }
+  }
+  .terminal-glitch {
+    animation: terminalJitter .22s steps(2);
+  }
+  @keyframes terminalJitter {
+    0% { transform: translate(0); }
+    25% { transform: translate(2px,-1px); }
+    50% { transform: translate(-2px,1px); }
+    75% { transform: translate(1px,0); }
+    100% { transform: translate(0); }
+  }
+  .corrupt {
+    animation: corruptText .55s steps(2);
+  }
+  @keyframes corruptText {
+    0%,100% { opacity: 1; }
+    20% { opacity: .35; }
+    40% { opacity: 1; transform: translateX(2px); }
+    60% { opacity: .55; transform: translateX(-2px); }
+    80% { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .glitching .glitch-title::before,
+    .glitching .glitch-title::after,
+    .flash-active,
+    .terminal-glitch,
+    .corrupt { animation: none; }
+  }
+
+</style>
+</head>
+<body>
+<div class="glitch-flash" id="glitchFlash"></div>
+<div class="scanlines"></div>
+
+<main class="terminal" id="terminal">
+  <div class="topbar">
+    <span>PROJECT: UNKNOWN</span>
+    <span class="status">● SECURE</span>
+  </div>
+
+  <section class="screen">
+    <div id="bootScreen">
+      <div class="label">SECURE TERMINAL // CONNECTION ESTABLISHED</div>
+      <div class="glitch-wrap"><h1 class="glitch-title" id="glitchTitle" data-text="ACCESS POINT">ACCESS POINT</h1></div>
+      <div class="line"></div>
+
+      <div class="boot" id="bootText"></div>
+
+      <div id="login" class="hidden">
+        <div class="prompt">ENTER THE 3-DIGIT ACCESS CODE:</div>
+        <input id="code" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="3 digit access code">
+        <button id="unlock">[ UNLOCK ]</button>
+        <div class="error" id="error"></div>
+        <div class="footer">HINT: THE MAGAZINE GAVE YOU EVERYTHING YOU NEED.</div>
+      </div>
+    </div>
+
+    <div id="successScreen" class="hidden">
+      <div class="label">SECURITY CHECK COMPLETE</div>
+      <h2>🔓 ACCESS GRANTED</h2>
+      <p>Code accepted: <strong>783</strong></p>
+
+      <div class="checks">
+        <span>LOCK 01 ........ PASSED ✓</span>
+        <span>LOCK 02 ........ PASSED ✓</span>
+        <span>LOCK 03 ........ PASSED ✓</span>
+        <span>IDENTITY ....... UNKNOWN</span>
+      </div>
+
+      <div class="success">
+        <div class="big">YOU WEREN'T SUPPOSED TO GET THIS FAR.</div>
+        <p class="muted">PROJECT UNKNOWN // FILE 01 UNSEALED</p>
+      </div>
+
+      <div class="reveal">
+        <p><strong>Congratulations.</strong></p>
+        <p>You stopped. You looked. You solved.</p>
+        <p>Most people will simply turn the page.</p>
+        <p><strong>You didn't.</strong></p>
+        <p class="muted">— DEPARTMENT MAGAZINE TEAM</p>
+      </div>
+
+      <button id="again">[ REPLAY ]</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const bootLines = [
+    "> Initializing secure terminal...",
+    "> Searching for PROJECT: UNKNOWN...",
+    "> Access point found.",
+    "> Security protocol active.",
+    "> Waiting for authorized code..."
+  ];
+
+  const bootText = document.getElementById("bootText");
+  const login = document.getElementById("login");
+  const code = document.getElementById("code");
+  const error = document.getElementById("error");
+  const terminal = document.getElementById("terminal");
+  const bootScreen = document.getElementById("bootScreen");
+  const successScreen = document.getElementById("successScreen");
+
+  let lineIndex = 0;
+
+  function boot() {
+    if (lineIndex < bootLines.length) {
+      const div = document.createElement("div");
+      div.textContent = bootLines[lineIndex++];
+      bootText.appendChild(div);
+      setTimeout(boot, 450);
+    } else {
+      setTimeout(() => {
+        login.classList.remove("hidden");
+        code.focus();
+      }, 400);
+    }
+  }
+
+  function unlock() {
+    const value = code.value.trim();
+
+    if (value === "783") {
+      error.textContent = "";
+      bootScreen.classList.add("hidden");
+      successScreen.classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      error.textContent = "ACCESS DENIED // CODE INVALID";
+      code.classList.remove("shake");
+      void code.offsetWidth;
+      code.classList.add("shake");
+      code.value = "";
+      code.focus();
+    }
+  }
+
+  document.getElementById("unlock").addEventListener("click", unlock);
+
+  code.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") unlock();
+  });
+
+  document.getElementById("again").addEventListener("click", () => {
+    location.reload();
+  });
+
+
+  const glitchFlash = document.getElementById("glitchFlash");
+  const glitchTitle = document.getElementById("glitchTitle");
+
+  function triggerGlitch(duration = 350) {
+    terminal.classList.add("terminal-glitch");
+    document.body.classList.add("glitching");
+    glitchFlash.classList.remove("flash-active");
+    void glitchFlash.offsetWidth;
+    glitchFlash.classList.add("flash-active");
+
+    setTimeout(() => {
+      terminal.classList.remove("terminal-glitch");
+      document.body.classList.remove("glitching");
+      glitchFlash.classList.remove("flash-active");
+    }, duration);
+  }
+
+  function randomGlitch() {
+    if (document.visibilityState === "visible") triggerGlitch(260);
+    setTimeout(randomGlitch, 4500 + Math.random() * 5500);
+  }
+
+  // Small random glitches keep the terminal feeling unstable.
+  setTimeout(randomGlitch, 3000);
+
+  // A stronger glitch when the user gets the code wrong.
+  const originalUnlock = unlock;
+  unlock = function() {
+    const value = code.value.trim();
+    if (value !== "783") triggerGlitch(500);
+    originalUnlock();
+  };
+
+  boot();
+</script>
+</body>
+</html>
